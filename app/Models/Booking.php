@@ -4,13 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Booking extends Model
 {
     use HasFactory;
 
     /**
-     * Attributes that are mass assignable.
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
      */
     protected $fillable = [
         'user_id',
@@ -20,9 +23,20 @@ class Booking extends Model
     ];
 
     /**
-     * Relationship: a booking belongs to a user.
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
      */
-    public function user()
+    protected $casts = [
+        'booking_date' => 'datetime',
+    ];
+
+    /**
+     * Get the user that owns the booking.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     */
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }

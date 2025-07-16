@@ -6,21 +6,36 @@ use App\Models\Booking;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Notifications\BookingCreatedNotification;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class BookingController extends Controller
 {
+    use AuthorizesRequests;
+
     /**
-     * List all bookings for the authenticated user.
+     * Show all bookings (web + API).
      */
     public function index(Request $request)
     {
-        return response()->json(
-            $request->user()->bookings()->latest()->get()
-        );
+        $bookings = $request->user()->bookings()->latest()->get();
+
+        if ($request->wantsJson()) {
+            return response()->json($bookings);
+        }
+
+        return view('bookings.index', compact('bookings'));
     }
 
     /**
-     * Store a new booking and notify the user.
+     * Show booking creation form (web).
+     */
+    public function create()
+    {
+        return view('bookings.create');
+    }
+
+    /**
+     * Store a new booking (web + API).
      */
     public function store(Request $request)
     {
@@ -32,27 +47,36 @@ class BookingController extends Controller
 
         $booking = $request->user()->bookings()->create($data);
 
-        // Notify the user
-        $request->user()->notify(new BookingCreatedNotification($booking));
+        // Try sending notification to user (email or database)
+        try {
+            $request->user()->notify(new BookingCreatedNotification($booking));
+        } catch (\Exception $e) {
+            \Log::error('Notification failed: ' . $e->getMessage());
+            // Optional: You can also flash a message to the session if needed
+            // session()->flash('warning', 'Booking saved, but notification failed to send.');
+        }
 
-        return response()->json([
-            'message' => 'Booking created successfully!',
-            'booking' => $booking,
-        ], 201);
+        if ($request->wantsJson()) {
+            return response()->json([
+                'message' => 'Booking created successfully!',
+                'booking' => $booking,
+            ], 201);
+        }
+
+        return redirect()->route('bookings.index')->with('success', 'Booking created successfully!');
     }
 
     /**
-     * Show a specific booking owned by the user.
+     * Show form for editing (web).
      */
-    public function show(Booking $booking)
+    public function edit(Booking $booking)
     {
-        $this->authorize('view', $booking);
-
-        return response()->json($booking);
+        $this->authorize('update', $booking);
+        return view('bookings.edit', compact('booking'));
     }
 
     /**
-     * Update a specific booking.
+     * Update a booking (web + API).
      */
     public function update(Request $request, Booking $booking)
     {
@@ -66,23 +90,37 @@ class BookingController extends Controller
 
         $booking->update($data);
 
-        return response()->json([
-            'message' => 'Booking updated successfully!',
-            'booking' => $booking,
-        ]);
+        if ($request->wantsJson()) {
+            return response()->json([
+                'message' => 'Booking updated successfully!',
+                'booking' => $booking,
+            ]);
+        }
+
+        return redirect()->route('bookings.index')->with('success', 'Booking updated successfully!');
     }
 
     /**
-     * Delete a specific booking.
+     * Delete a booking (web + API).
      */
-    public function destroy(Booking $booking)
+    public function destroy(Request $request, Booking $booking)
     {
         $this->authorize('delete', $booking);
-
         $booking->delete();
 
-        return response()->json([
-            'message' => 'Booking deleted successfully.',
-        ]);
+        if ($request->wantsJson()) {
+            return response()->json(['message' => 'Booking deleted successfully.']);
+        }
+
+        return redirect()->route('bookings.index')->with('success', 'Booking deleted successfully.');
+    }
+
+    /**
+     * Show one booking (API only).
+     */
+    public function show(Booking $booking)
+    {
+        $this->authorize('view', $booking);
+        return response()->json($booking);
     }
 }
